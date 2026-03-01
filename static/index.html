@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZeroDay Exploit | Security Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #030407;
+            --card-bg: #0d1117;
+            --primary-color: #00ff9d;
+            --primary-glow: rgba(0, 255, 157, 0.5);
+            --secondary-color: #7b2cbf;
+            --text-color: #e0e6ed;
+            --text-muted: #8b949e;
+            --border-color: #30363d;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Ambient background effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at center, rgba(123, 44, 191, 0.1) 0%, transparent 50%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        header {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(3, 4, 7, 0.8);
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+
+        main {
+            flex: 1;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        /* Dashboard Section */
+        .dashboard-container {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            /* overflow: hidden; Removed to prevent clipping of potential popups/overlays */
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            position: relative;
+            height: 80vh;
+            /* Updated to match user's working code preference */
+            transition: box-shadow 0.3s ease;
+            z-index: 10;
+            /* Ensure it is above the background */
+        }
+
+        .dashboard-container:hover {
+            box-shadow: 0 0 20px rgba(123, 44, 191, 0.3);
+            border-color: var(--secondary-color);
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        /* Search Section */
+        .search-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 1rem;
+        }
+
+        .search-box {
+            background: var(--card-bg);
+            padding: 1rem;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+            display: flex;
+            gap: 1rem;
+            width: 100%;
+            max-width: 800px;
+            position: relative;
+        }
+
+        .search-box input {
+            flex: 1;
+            background: transparent;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            color: #fff;
+            font-family: inherit;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .search-box input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 10px rgba(0, 255, 157, 0.1);
+        }
+
+        .search-box button {
+            background: linear-gradient(135deg, var(--secondary-color), #9d4edd);
+            color: white;
+            border: none;
+            padding: 0 2rem;
+            border-radius: 8px;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .search-box button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 15px rgba(123, 44, 191, 0.6);
+        }
+
+        .search-box button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* PDF Viewer Section */
+        .pdf-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            min-height: 800px;
+            display: none;
+            /* Hidden by default */
+            flex-direction: column;
+            overflow: hidden;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .pdf-header {
+            padding: 1rem 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .pdf-header h2 {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .download-btn {
+            padding: 0.5rem 1rem;
+            background: #333;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+
+        .download-btn:hover {
+            background: #444;
+        }
+
+        .pdf-viewer {
+            flex: 1;
+            width: 100%;
+            height: 800px;
+            border: none;
+            background: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Loading Spinner */
+        .loader {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .status-msg {
+            margin-top: 1rem;
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            min-height: 1.5rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="logo">
+            <svg viewBox="0 0 24 24">
+                <path d="M12 2L1 21h22L12 2zm0 3.99L19.53 19H4.47L12 5.99zM11 16h2v2h-2zm0-6h2v4h-2z" />
+            </svg>
+            ZeroDay.Exploit
+        </div>
+        <div style="font-size: 0.9rem; color: var(--text-muted);">
+            Advanced Threat Analysis
+        </div>
+    </header>
+
+    <main>
+        <!-- PowerBI Dashboard -->
+        <div class="dashboard-container">
+            <iframe title="ZeroDayDA"
+                src="https://app.fabric.microsoft.com/reportEmbed?reportId=0e544593-f4ba-492a-a40d-eb2e1f4dfd34&autoAuth=true&ctid=ea8bd1fd-ac34-4ae2-b421-6cfa2fcff243"
+                allowfullscreen="true">
+            </iframe>
+        </div>
+
+        <!-- Search Input -->
+        <div class="search-section">
+            <div class="search-box">
+                <input type="url" id="targetUrl" placeholder="Enter Target URL (e.g., https://example.com)" required>
+                <button id="scanBtn">
+                    <span class="btn-text">Scan Target</span>
+                    <div class="loader"></div>
+                </button>
+            </div>
+        </div>
+        <div class="status-msg" id="statusMsg"></div>
+
+        <!-- PDF Viewer -->
+        <div class="pdf-section" id="pdfSection">
+            <div class="pdf-header">
+                <h2>Generated Report</h2>
+                <a href="#" id="downloadLink" class="download-btn" download="report.pdf">Download</a>
+            </div>
+            <object id="pdfObject" class="pdf-viewer" type="application/pdf" data="">
+                <p>PDF cannot be displayed. <a href="#" id="fallbackLink">Download</a> instead.</p>
+            </object>
+        </div>
+    </main>
+
+    <script>
+        const scanBtn = document.getElementById('scanBtn');
+        const targetUrlInput = document.getElementById('targetUrl');
+        const pdfSection = document.getElementById('pdfSection');
+        const pdfObject = document.getElementById('pdfObject');
+        const statusMsg = document.getElementById('statusMsg');
+        const loader = document.querySelector('.loader');
+        const btnText = document.querySelector('.btn-text');
+        const downloadLink = document.getElementById('downloadLink');
+        const fallbackLink = document.getElementById('fallbackLink');
+
+        scanBtn.addEventListener('click', async () => {
+            const url = targetUrlInput.value.trim();
+            if (!url) {
+                statusMsg.textContent = "Please enter a valid URL.";
+                statusMsg.style.color = "#ff4d4d";
+                return;
+            }
+
+            // Reset UI
+            statusMsg.textContent = "Initiating scan...";
+            statusMsg.style.color = "var(--text-muted)";
+            pdfSection.style.display = 'none';
+            setLoading(true);
+
+            try {
+                const response = await fetch('/getReport', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Analysis failed check server logs');
+                }
+
+                const result = await response.json();
+
+                if (result.status === 'success' && result.pdf_base64) {
+                    const pdfData = "data:application/pdf;base64," + result.pdf_base64;
+
+                    // Update PDF viewer
+                    pdfObject.setAttribute('data', pdfData);
+                    downloadLink.href = pdfData;
+                    fallbackLink.href = pdfData;
+
+                    // Show section
+                    pdfSection.style.display = 'flex';
+                    statusMsg.textContent = "Scan complete. Report generated.";
+                    statusMsg.style.color = "var(--primary-color)";
+
+                    // Smooth scroll to results
+                    setTimeout(() => {
+                        pdfSection.scrollIntoView({ behavior: 'smooth' });
+                    }, 100);
+                } else {
+                    throw new Error(result.error || 'Unknown error occurred');
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                statusMsg.textContent = "Error: " + error.message;
+                statusMsg.style.color = "#ff4d4d";
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        function setLoading(isLoading) {
+            scanBtn.disabled = isLoading;
+            if (isLoading) {
+                loader.style.display = 'block';
+                btnText.style.display = 'none';
+            } else {
+                loader.style.display = 'none';
+                btnText.style.display = 'block';
+            }
+        }
+
+        // Enter key to submit
+        targetUrlInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                scanBtn.click();
+            }
+        });
+    </script>
+</body>
+
+</html>
