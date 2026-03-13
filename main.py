@@ -1,4 +1,5 @@
 import logging, os, json
+import google.generativeai as genai
 from logging.handlers import RotatingFileHandler
 from sheets import push_to_sheets
 from utils import (
@@ -9,12 +10,9 @@ from agents import (
     agent_1_schema, agent_2_schema, agent_3_schema, get_llm_response, call_api,
     agent_1_prompt, agent_2_prompt, agent_3_prompt, agent_4_prompt, clean_llm_response
 )
-from openai import AzureOpenAI
 
-api_version = os.getenv("AZURE_OPENAI_API_VERSION")
-azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-api_key = os.getenv("AZURE_OPENAI_API_KEY")
-client = AzureOpenAI(api_version=api_version, azure_endpoint=azure_endpoint, api_key=api_key)
+api_key = os.getenv("GEMINI_API_KEY")
+genai.configure(api_key=api_key)
 logger = logging.getLogger(__name__)
 
 def setup_logging() -> None:
@@ -35,7 +33,7 @@ def setup_logging() -> None:
         return
     root_logger.setLevel(logging.DEBUG)
     root_logger.addHandler(file_handler)
-    for logger_name in ["httpcore", "openai", "httpx", "asyncio", "urllib3"]:
+    for logger_name in ["httpcore", "httpx", "asyncio", "urllib3", "google"]:
         logging.getLogger(logger_name).propagate = False
 
 async def get_report(url: str):
@@ -88,7 +86,7 @@ async def get_report(url: str):
 
             # Ask LLM for API
             logger.info(f"Calling API {j+1}/10")
-            success, llm_response = get_llm_response(client, messages, agent_1_schema())
+            success, llm_response = get_llm_response(messages, agent_1_schema(), model="gemini-1.5-flash")
             if not success or not llm_response:
                 continue
             logger.debug(f"LLM Response:\n{llm_response}")
@@ -105,7 +103,7 @@ async def get_report(url: str):
             {"role": "system", "content": agent_2_prompt(called_apis)},
             {"role": "user", "content": f"Message History:\n\n{messages}"}
         ]
-        success, llm_response = get_llm_response(client, messages, agent_2_schema())
+        success, llm_response = get_llm_response(messages, agent_2_schema(), model="gemini-1.5-flash")
         if not success:
             continue
         if isinstance(llm_response, str):
@@ -138,7 +136,7 @@ async def get_report(url: str):
                     {"role": "system", "content": agent_3_prompt()},
                     {"role": "user", "content": f"Code Block:\n\n{block}"}
                 ]
-                success, llm_response = get_llm_response(client, messages, agent_3_schema())
+                success, llm_response = get_llm_response(messages, agent_3_schema(), model="gemini-1.5-flash")
                 if not success:
                     continue
                 if isinstance(llm_response, str):
@@ -155,7 +153,7 @@ async def get_report(url: str):
         {"role": "system", "content": agent_4_prompt()},
         {"role": "user", "content": f"Total Information:\n\n{output}"}
     ]
-    _, llm_response = get_llm_response(client, messages)
+    _, llm_response = get_llm_response(messages, model="gemini-1.5-pro")
     llm_response = clean_llm_response(llm_response)
     output["report"] = llm_response
     logger.debug(f"Final Report:\n{output}")

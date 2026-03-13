@@ -1,31 +1,52 @@
-import json
-import openai, logging, requests
+import json, logging, requests
+import google.generativeai as genai
 
-OPENAI_TIMEOUT_LIMIT = 35
-OPENAI_TIMEOUT_RESPONSE = "We're sorry, but your request could not be completed as our language model server did not respond in time. Please try again in a few moments."
-OPENAI_ERROR_RESPONSE = "We're experiencing technical difficulties connecting to our language model service. Please try again shortly. If the issue persists, contact your system administrator."
+GEMINI_TIMEOUT_LIMIT = 35
+GEMINI_TIMEOUT_RESPONSE = "We're sorry, but your request could not be completed as our language model server did not respond in time. Please try again in a few moments."
+GEMINI_ERROR_RESPONSE = "We're experiencing technical difficulties connecting to our language model service. Please try again shortly. If the issue persists, contact your system administrator."
 logger = logging.getLogger(__name__)
 
 def get_llm_response(
-    client: openai.AzureOpenAI,
     messages: list[dict[str, str]],
     response_format: dict | None = None,
-    model: str = "gpt-4o-mini"
+    model: str = "gemini-2.5-flash"
 ) -> tuple[bool, str]:
 
     try:
-        params = {"model": model, "messages": messages, "timeout": OPENAI_TIMEOUT_LIMIT}
+        # Convert messages to Gemini format
+        system_instruction = None
+        contents = []
+        
+        for msg in messages:
+            if msg["role"] == "system":
+                system_instruction = msg["content"]
+            elif msg["role"] == "user":
+                contents.append({"role": "user", "parts": [msg["content"]]})
+            elif msg["role"] == "assistant":
+                contents.append({"role": "model", "parts": [msg["content"]]})
+        
+        # Configure generation
+        generation_config: dict = {"temperature": 1.0}
         if response_format:
-            params["response_format"] = response_format
-        response = client.chat.completions.create(**params)
-        return True, response.choices[0].message.content
+            generation_config["response_mime_type"] = "application/json"
+            generation_config["response_schema"] = response_format
+        
+        # Create model and generate
+        gemini_model = genai.GenerativeModel(
+            model_name=model,
+            generation_config=generation_config,
+            system_instruction=system_instruction
+        )
+        
+        response = gemini_model.generate_content(contents, request_options={"timeout": GEMINI_TIMEOUT_LIMIT})
+        return True, response.text
 
-    except openai.APITimeoutError:
-        logger.exception(OPENAI_TIMEOUT_RESPONSE)
-        return False, OPENAI_TIMEOUT_RESPONSE
-    except Exception:
-        logger.exception(OPENAI_ERROR_RESPONSE)
-        return False, OPENAI_ERROR_RESPONSE
+    except Exception as e:
+        if "timeout" in str(e).lower():
+            logger.exception(GEMINI_TIMEOUT_RESPONSE)
+            return False, GEMINI_TIMEOUT_RESPONSE
+        logger.exception(GEMINI_ERROR_RESPONSE)
+        return False, GEMINI_ERROR_RESPONSE
 
 def call_api(api_info) -> str:
     if isinstance(api_info, str):
@@ -142,41 +163,31 @@ def agent_1_prompt(called_apis):
 
 def agent_1_schema():
     return {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "api_info",
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "endpoint": {
-                        "type": "string",
-                        "description": "The fully qualified API URL including path and query parameters."
-                    },
-                    "method": {
-                        "type": "string",
-                        "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"],
-                        "description": "HTTP method for the request."
-                    },
-                    "headers": {
-                        "type": "object",
-                        "description": "Optional HTTP headers.",
-                        "additionalProperties": {"type": "string"}
-                    },
-                    "payload": {
-                        "oneOf": [{"type": "object", "additionalProperties": False}, {"type": "null"}],
-                        "description": "Optional JSON body for POST/PUT/PATCH requests."
-                    },
-                    "timeout": {
-                        "type": "number",
-                        "description": "Optional timeout in seconds for the API call.",
-                        "default": 10
-                    }
-                },
-                "required": ["endpoint", "method"],
-                "additionalProperties": False
+        "type": "object",
+        "properties": {
+            "endpoint": {
+                "type": "string",
+                "description": "The fully qualified API URL including path and query parameters."
             },
-            "strict": False
-        }
+            "method": {
+                "type": "string",
+                "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"],
+                "description": "HTTP method for the request."
+            },
+            "headers": {
+                "type": "object",
+                "description": "Optional HTTP headers."
+            },
+            "payload": {
+                "type": ["object", "null"],
+                "description": "Optional JSON body for POST/PUT/PATCH requests."
+            },
+            "timeout": {
+                "type": "number",
+                "description": "Optional timeout in seconds for the API call."
+            }
+        },
+        "required": ["endpoint", "method"]
     }
 
 def agent_2_prompt(called_apis):
@@ -243,44 +254,37 @@ def agent_2_prompt(called_apis):
 
 def agent_2_schema():
     return {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "api_info",
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "url": {
-                        "type": "string",
-                        "description": "The URL of the API"
-                    },
-                    "attacks": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {"name": {"type": "string"}, "status": {"type": "boolean"}},
-                            "required": ["name", "status"],
-                            "additionalProperties": False
-                        }
-                    },
-                    "vulnerabilities": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "name": {"type": "string"},
-                                "severity": {"type": "number", "minimum": 1, "maximum": 10},
-                                "description": {"type": "string"}
-                            },
-                            "required": ["name", "severity", "description"],
-                            "additionalProperties": False
-                        }
-                    }
-                },
-                "required": ["url", "attacks", "vulnerabilities"],
-                "additionalProperties": False
+        "type": "object",
+        "properties": {
+            "url": {
+                "type": "string",
+                "description": "The URL of the API"
             },
-            "strict": True
-        }
+            "attacks": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "status": {"type": "boolean"}
+                    },
+                    "required": ["name", "status"]
+                }
+            },
+            "vulnerabilities": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "severity": {"type": "number"},
+                        "description": {"type": "string"}
+                    },
+                    "required": ["name", "severity", "description"]
+                }
+            }
+        },
+        "required": ["url", "attacks", "vulnerabilities"]
     }
 
 def agent_3_prompt():
@@ -314,31 +318,22 @@ def agent_3_prompt():
 
 def agent_3_schema():
     return {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "code_info",
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "vulnerabilities": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "name": {"type": "string"},
-                                "severity": {"type": "number", "minimum": 1, "maximum": 10},
-                                "description": {"type": "string"}
-                            },
-                            "required": ["name", "severity", "description"],
-                            "additionalProperties": False
-                        }
-                    }
-                },
-                "required": ["vulnerabilities"],
-                "additionalProperties": False
-            },
-            "strict": True
-        }
+        "type": "object",
+        "properties": {
+            "vulnerabilities": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "severity": {"type": "number"},
+                        "description": {"type": "string"}
+                    },
+                    "required": ["name", "severity", "description"]
+                }
+            }
+        },
+        "required": ["vulnerabilities"]
     }
 
 def agent_4_prompt():
